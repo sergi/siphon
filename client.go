@@ -9,14 +9,8 @@ import (
 	"net"
 	"os"
 	"time"
-
-	"github.com/teris-io/shortid"
 )
 
-const (
-	ExitCodeOK = iota
-	ExitCodeError
-)
 const maxBufferCapacity = 1024 * 4
 
 // Get preferred outbound ip of this machine
@@ -37,24 +31,24 @@ func getIdentifier() string {
 	if err != nil {
 		hostname = getOutboundIP().String()
 	}
-	ID, _ := shortid.Generate()
-	return hostname + "-" + ID
+	//ID, _ := shortid.Generate()
+	return hostname //+ "-" + ID
 }
 
 var sessionID = getIdentifier()
 
-func Init(address string) {
-	fmt.Println("Connecting to " + address)
+func Init(address string) error {
+	fmt.Println("connecting to " + address)
 	udpAddr, err := net.ResolveUDPAddr("udp4", address)
+
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(ExitCodeError)
+		return err
 	}
 
 	conn, err := net.DialUDP("udp", nil, udpAddr)
+
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(ExitCodeError)
+		return err
 	}
 
 	nBytes, nChunks := int64(0), int64(0)
@@ -77,9 +71,10 @@ func Init(address string) {
 		nBytes += int64(len(buffer))
 
 		jsonToSend, err := json.Marshal(Chunk{
+			//ID:        guid,
 			Data:      string(buffer),
 			Host:      sessionID,
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Unix(),
 		})
 
 		if err != nil {
@@ -89,9 +84,7 @@ func Init(address string) {
 		_, err = conn.Write(jsonToSend)
 
 		if err != nil {
-			// fmt.Fprintf(os.Stderr, "Fatal error ", err.Error())
-			fmt.Println(err)
-			os.Exit(ExitCodeError)
+			return err
 		}
 		// process buffer
 		if err != nil && err != io.EOF {
@@ -101,8 +94,8 @@ func Init(address string) {
 		// Write to stdout
 		out := os.Stdout
 		if _, err = out.WriteString(string(buffer)); err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
-			os.Exit(1)
+			fmt.Fprintln(os.Stderr, err)
 		}
 	}
+	return nil
 }

@@ -29,8 +29,12 @@ func main() {
 			fmt.Println(err)
 			os.Exit(ExitCodeError)
 		}
-		os.Exit(ExitCodeOK)
+	} else {
+		err := p2b.Init(*address)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(ExitCodeError)
+		}
 	}
-
-	p2b.Init(*address)
+	os.Exit(ExitCodeOK)
 }

@@ -29,7 +29,7 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-type server struct {
+type Server struct {
 	subscriptions      map[string][]chan []byte
 	subscriptionsMutex sync.Mutex
 	connected          int64
@@ -37,16 +37,19 @@ type server struct {
 	port               int
 }
 
-func NewServer(port int) server {
-	server := server{}
+// NewServer creates a new server with the given port, or a. default one in
+// case it's not provided.
+func NewServer(port int) *Server {
 	if port == 0 {
 		port = defaultPort
 	}
-	server.port = port
-	return server
+	s := &Server{
+		port: port,
+	}
+	return s
 }
 
-func (s *server) Init() error {
+func (s *Server) Init() error {
 	s.subscriptions = map[string][]chan []byte{}
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		ws, err := upgrader.Upgrade(w, r, nil)
@@ -71,7 +74,7 @@ func (s *server) Init() error {
 	return nil
 }
 
-func (s *server) handleConnection(ws *websocket.Conn, channel string) {
+func (s *Server) handleConnection(ws *websocket.Conn, channel string) {
 	sub := s.subscribe(channel)
 	atomic.AddInt64(&s.connected, 1)
 	t := time.NewTicker(pingPeriod)
@@ -99,7 +102,7 @@ func (s *server) handleConnection(ws *websocket.Conn, channel string) {
 	s.unsubscribe(channel, sub)
 }
 
-func (s *server) startReceiving() {
+func (s *Server) startReceiving() {
 	addr := net.UDPAddr{
 		Port: defaultUDPPort,
 		IP:   net.ParseIP("127.0.0.1"),
@@ -120,11 +123,12 @@ func (s *server) startReceiving() {
 			fmt.Println(err)
 			return
 		}
-		fmt.Println("got message from ", addr, " with n = ", n)
+		fmt.Println("Got message from ", addr, " with n = ", n)
 
 		s.subscriptionsMutex.Lock()
 		subs := s.subscriptions["logging"]
 		s.subscriptionsMutex.Unlock()
+		fmt.Println(string(buf[:n]))
 
 		for _, s := range subs {
 			select {
@@ -136,7 +140,7 @@ func (s *server) startReceiving() {
 	}
 }
 
-func (s *server) subscribe(channel string) chan []byte {
+func (s *Server) subscribe(channel string) chan []byte {
 	sub := make(chan []byte)
 	s.subscriptionsMutex.Lock()
 	s.subscriptions[channel] = append(s.subscriptions[channel], sub)
@@ -144,7 +148,7 @@ func (s *server) subscribe(channel string) chan []byte {
 	return sub
 }
 
-func (s *server) unsubscribe(channel string, sub chan []byte) {
+func (s *Server) unsubscribe(channel string, sub chan []byte) {
 	s.subscriptionsMutex.Lock()
 	var newSubs []chan []byte
 	subs := s.subscriptions[channel]
