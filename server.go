@@ -1,4 +1,4 @@
-package p2b
+package siphon
 
 import (
 	"fmt"
@@ -29,6 +29,8 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+// Server represents a UDP and Websockets server that broadcasts all data
+// chunks coming from client pipes
 type Server struct {
 	subscriptions      map[string][]chan []byte
 	subscriptionsMutex sync.Mutex

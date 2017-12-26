@@ -1,4 +1,4 @@
-package p2b
+package siphon
 
 import (
 	"bufio"
@@ -9,6 +9,8 @@ import (
 	"net"
 	"os"
 	"time"
+
+	"github.com/teris-io/shortid"
 )
 
 const maxBufferCapacity = 1024 * 4
@@ -26,37 +28,48 @@ func getOutboundIP() net.IP {
 	return localAddr.IP
 }
 
-func getIdentifier() string {
+func getHostName() string {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = getOutboundIP().String()
 	}
-	//ID, _ := shortid.Generate()
-	return hostname //+ "-" + ID
+	return hostname
 }
 
-var sessionID = getIdentifier()
-
-func Init(address string) error {
-	fmt.Println("connecting to " + address)
+func getUDPAddress(address string) (*net.UDPConn, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp4", address)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	conn, err := net.DialUDP("udp", nil, udpAddr)
 
 	if err != nil {
+		return nil, err
+	}
+	return conn, nil
+}
+
+// Init initializes the client to start sending Chunks at the given address
+func Init(address string, id string, stream *bufio.Reader) error {
+	if id == "" {
+		id, _ = shortid.Generate()
+	}
+
+	conn, err := getUDPAddress(address)
+	if err != nil {
 		return err
 	}
 
 	nBytes, nChunks := int64(0), int64(0)
-	streamReader := bufio.NewReader(os.Stdin)
+	if stream == nil {
+		stream = bufio.NewReader(os.Stdin)
+	}
 
 	buffer := make([]byte, 0, maxBufferCapacity)
 	for {
-		n, err := streamReader.Read(buffer[:cap(buffer)])
+		n, err := stream.Read(buffer[:cap(buffer)])
 		buffer = buffer[:n]
 		if n == 0 {
 			if err == nil {
@@ -71,9 +84,9 @@ func Init(address string) error {
 		nBytes += int64(len(buffer))
 
 		jsonToSend, err := json.Marshal(Chunk{
-			//ID:        guid,
+			ID:        id,
 			Data:      string(buffer),
-			Host:      sessionID,
+			Host:      getHostName(),
 			Timestamp: time.Now().Unix(),
 		})
 

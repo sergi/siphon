@@ -1,6 +1,6 @@
-package p2b
+package siphon
 
 const (
-	Name    = "P2B"
+	Name    = "Siphon"
 	Version = "1.0"
 )
