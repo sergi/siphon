@@ -52,7 +52,7 @@ func getUDPAddress(address string) (*net.UDPConn, error) {
 }
 
 // Init initializes the client to start sending Chunks at the given address
-func Init(address string, id string, stream *bufio.Reader) error {
+func Init(address string, id string, stream *bufio.Reader, emitOutput bool) error {
 	if id == "" {
 		id, _ = shortid.Generate()
 	}
@@ -104,10 +104,12 @@ func Init(address string, id string, stream *bufio.Reader) error {
 			log.Fatal(err)
 		}
 
-		// Write to stdout
-		out := os.Stdout
-		if _, err = out.WriteString(string(buffer)); err != nil {
-			fmt.Fprintln(os.Stderr, err)
+		if emitOutput == true {
+			// Write to stdout
+			out := os.Stdout
+			if _, err = out.WriteString(string(buffer)); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+			}
 		}
 	}
 	return nil

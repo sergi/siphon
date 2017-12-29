@@ -17,7 +17,7 @@ import (
 const (
 	maxMessageSize = 1024
 	pingPeriod     = 5 * time.Minute
-	defaultPort    = 3000
+	defaultWsPort  = 3000
 	defaultUDPPort = 1200
 )
 
@@ -36,17 +36,22 @@ type Server struct {
 	subscriptionsMutex sync.Mutex
 	connected          int64
 	failed             int64
-	port               int
+	wsPort             int
+	udpPort            int
 }
 
 // NewServer creates a new server with the given port, or a. default one in
 // case it's not provided.
-func NewServer(port int) *Server {
-	if port == 0 {
-		port = defaultPort
+func NewServer(udpPort int, wsPort int) *Server {
+	if udpPort == 0 {
+		udpPort = defaultUDPPort
+	}
+	if wsPort == 0 {
+		wsPort = defaultWsPort
 	}
 	s := &Server{
-		port: port,
+		wsPort:  wsPort,
+		udpPort: udpPort,
 	}
 	return s
 }
@@ -67,7 +72,7 @@ func (s *Server) Init() error {
 	})
 
 	go func() {
-		if err := http.ListenAndServe(":"+strconv.Itoa(s.port), nil); err != nil {
+		if err := http.ListenAndServe(":"+strconv.Itoa(s.wsPort), nil); err != nil {
 			log.Fatal(err)
 		}
 	}()
@@ -106,7 +111,7 @@ func (s *Server) handleConnection(ws *websocket.Conn, channel string) {
 
 func (s *Server) startReceiving() {
 	addr := net.UDPAddr{
-		Port: defaultUDPPort,
+		Port: s.udpPort,
 		IP:   net.ParseIP("127.0.0.1"),
 	}
 
@@ -114,8 +119,8 @@ func (s *Server) startReceiving() {
 	checkError(err)
 
 	hostName, _ := os.Hostname()
-	fmt.Println(Name + " WebSocket server running in " + hostName + ":" + strconv.Itoa(s.port))
-	fmt.Println(Name + " UDP server running in " + hostName + ":" + strconv.Itoa(defaultUDPPort))
+	fmt.Println(Name + " WebSocket server running in " + hostName + ":" + strconv.Itoa(s.wsPort))
+	fmt.Println(Name + " UDP server running in " + hostName + ":" + strconv.Itoa(s.udpPort))
 
 	for {
 		var buf = make([]byte, 1500)
