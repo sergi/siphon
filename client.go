@@ -67,6 +67,7 @@ func Init(address string, id string, stream *bufio.Reader, emitOutput bool) erro
 		stream = bufio.NewReader(os.Stdin)
 	}
 
+	host := getHostName()
 	buffer := make([]byte, 0, maxBufferCapacity)
 	for {
 		n, err := stream.Read(buffer[:cap(buffer)])
@@ -86,7 +87,7 @@ func Init(address string, id string, stream *bufio.Reader, emitOutput bool) erro
 		jsonToSend, err := json.Marshal(Chunk{
 			ID:        id,
 			Data:      string(buffer),
-			Host:      getHostName(),
+			Host:      host,
 			Timestamp: time.Now().Unix(),
 		})
 
