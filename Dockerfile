@@ -3,6 +3,7 @@ RUN apk update && apk upgrade && \
       apk add --no-cache bash git openssh
 WORKDIR /app
 ADD . /app
+RUN dep ensure -vendor-only
 RUN cd /app \
       && go get -d -v ./...\
       && cd cmd/siph \
@@ -15,7 +16,6 @@ RUN apk update && apk upgrade && \
 WORKDIR /app
 RUN git clone https://github.com/sergi/siphon-ui.git
 RUN cd /app/siphon-ui && npm install && npm run build
-
 
 FROM nginx:alpine
 # WORKDIR /app
