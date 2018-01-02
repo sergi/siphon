@@ -119,8 +119,8 @@ func (s *Server) startReceiving() {
 	checkError(err)
 
 	hostName, _ := os.Hostname()
-	fmt.Println(Name + " WebSocket server running in " + hostName + ":" + strconv.Itoa(s.wsPort))
-	fmt.Println(Name + " UDP server running in " + hostName + ":" + strconv.Itoa(s.udpPort))
+	fmt.Println(Name + " WebSocket server: " + hostName + ":" + strconv.Itoa(s.wsPort))
+	fmt.Println(Name + " UDP server: " + hostName + ":" + strconv.Itoa(s.udpPort))
 
 	for {
 		var buf = make([]byte, 1500)

@@ -2,17 +2,30 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 
 	"github.com/sergi/siphon"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 const (
-	ExitCodeOK = iota
+	exitCodeOK = iota
 	ExitCodeError
 )
+
+const siphonTemplate = `
+	 _____  _         _
+	/  ___|(_)       | |
+	\ ` + "`" + `--.  _  _ __  | |__    ___   _ __
+	` + " `" + `--. \| || '_ \ | '_ \  / _ \ | '_ \
+	/\__/ /| || |_) || | | || (_) || | | |
+	\____/ |_|| .__/ |_| |_| \___/ |_| |_|
+	          | |
+	          |_|
+			  
+`
 
 var (
 	app = kingpin.New("siph", "A real-time stream utility.")
@@ -27,12 +40,22 @@ var (
 	clientNoOutput = client.Flag("no-output", "Don't emit any output. Siph re-emits its stdin output by default").Bool()
 )
 
-func main() {
+func configure() {
+	buffer := bytes.NewBufferString("")
 
+	fmt.Fprintf(buffer, siphonTemplate)
+	fmt.Fprintf(buffer, kingpin.DefaultUsageTemplate)
+
+	app.UsageTemplate(buffer.String()).Version("0.1").Author("Sergi Mansilla")
+}
+
+func main() {
+	configure()
 	switch kingpin.MustParse(app.Parse(os.Args[1:])) {
 
 	case server.FullCommand():
 		server := siphon.NewServer(*serverUDPPort, *serverWsPort)
+		fmt.Print(siphonTemplate)
 		err := server.Init()
 		if err != nil {
 			fmt.Println(err)
@@ -47,5 +70,5 @@ func main() {
 		}
 	}
 
-	os.Exit(ExitCodeOK)
+	os.Exit(exitCodeOK)
 }
