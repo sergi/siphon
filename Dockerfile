@@ -1,26 +1,33 @@
 FROM golang:alpine AS build-env-go
 RUN apk update && apk upgrade && \
       apk add --no-cache bash git openssh
-WORKDIR /app
-ADD . /app
+# Install vendor/deps
+RUN go get github.com/golang/dep/cmd/dep
+RUN mkdir -p /go/src/github.com/sergi/siphon
+COPY Gopkg.lock Gopkg.toml /go/src/github.com/sergi/siphon/
+WORKDIR /go/src/github.com/sergi/siphon
 RUN dep ensure -vendor-only
-RUN cd /app \
-      && go get -d -v ./...\
-      && cd cmd/siph \
-      && GOOS=linux go build
-ENTRYPOINT ./cmd/siph/siph
+# Build actual project
+COPY . /go/src/github.com/sergi/siphon/
+RUN GOOS=linux go build ./cmd/siph/
 
 FROM node:alpine AS build-env-node
 RUN apk update && apk upgrade && \
       apk add --no-cache bash git openssh
+RUN git clone https://github.com/sergi/siphon-ui.git app
 WORKDIR /app
-RUN git clone https://github.com/sergi/siphon-ui.git
-RUN cd /app/siphon-ui && npm install && npm run build
+RUN npm install
+RUN npm run build
 
 FROM nginx:alpine
-# WORKDIR /app
-# EXPOSE 8080
-COPY --from=build-env-go /app/cmd/siph/siph /app/
-COPY --from=build-env-node /app/siphon-ui/build /usr/share/nginx/html
-ENTRYPOINT ["./app/siph", "server"]
+EXPOSE 80
+# UDP Port
+EXPOSE 1200
+# WebSockets Port
+EXPOSE 3000
+WORKDIR /app
+COPY --from=build-env-go /go/src/github.com/sergi/siphon/siph /app/
+COPY --from=build-env-node /app/build /usr/share/nginx/html/
+ENTRYPOINT ["./siph"]
+CMD ["server"]
 
