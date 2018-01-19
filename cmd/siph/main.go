@@ -4,10 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/sergi/siphon"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 const (
@@ -49,6 +50,21 @@ func configure() {
 	app.UsageTemplate(buffer.String()).Version("0.1").Author("Sergi Mansilla")
 }
 
+func getUDPAddress(address string) (*net.UDPConn, error) {
+	udpAddr, err := net.ResolveUDPAddr("udp4", address)
+
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.DialUDP("udp", nil, udpAddr)
+
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
+}
+
 func main() {
 	configure()
 	switch kingpin.MustParse(app.Parse(os.Args[1:])) {
@@ -63,7 +79,23 @@ func main() {
 		}
 
 	case client.FullCommand():
-		err := siphon.Init(*clientAddress, *clientID, bufio.NewReader(os.Stdin), !(*clientNoOutput))
+		consumerOpts := &siphon.ConsumerOptions{
+			Id:         *clientID,
+			Address:    *clientAddress,
+			EmitOutput: !(*clientNoOutput),
+		}
+
+		conn, connErr := getUDPAddress(*clientAddress)
+		if connErr != nil {
+			fmt.Fprintln(os.Stderr, connErr)
+			os.Exit(ExitCodeError)
+		}
+		err := siphon.Init(
+			*consumerOpts,
+			bufio.NewReader(os.Stdin),
+			conn,
+		)
+
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(ExitCodeError)

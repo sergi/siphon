@@ -1,8 +1,8 @@
 package siphon
 
 import (
-	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +14,12 @@ import (
 )
 
 const maxBufferCapacity = 1024 * 4
+
+type ConsumerOptions struct {
+	Id         string
+	Address    string
+	EmitOutput bool
+}
 
 // Get preferred outbound ip of this machine
 func getOutboundIP() net.IP {
@@ -36,35 +42,16 @@ func getHostName() string {
 	return hostname
 }
 
-func getUDPAddress(address string) (*net.UDPConn, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp4", address)
-
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := net.DialUDP("udp", nil, udpAddr)
-
-	if err != nil {
-		return nil, err
-	}
-	return conn, nil
-}
-
 // Init initializes the client to start sending Chunks at the given address
-func Init(address string, id string, stream *bufio.Reader, emitOutput bool) error {
-	if id == "" {
-		id, _ = shortid.Generate()
-	}
-
-	conn, err := getUDPAddress(address)
-	if err != nil {
-		return err
+func Init(opts ConsumerOptions, stream io.Reader, conn io.Writer) error {
+	if opts.Id == "" {
+		opts.Id, _ = shortid.Generate()
 	}
 
 	nBytes, nChunks := int64(0), int64(0)
 	if stream == nil {
-		stream = bufio.NewReader(os.Stdin)
+		err := errors.New("no stream passed as a parameter, nowhere to read from")
+		return err
 	}
 
 	host := getHostName()
@@ -85,7 +72,7 @@ func Init(address string, id string, stream *bufio.Reader, emitOutput bool) erro
 		nBytes += int64(len(buffer))
 
 		jsonToSend, err := json.Marshal(Chunk{
-			ID:        id,
+			ID:        opts.Id,
 			Data:      string(buffer),
 			Host:      host,
 			Timestamp: time.Now().Unix(),
@@ -95,17 +82,11 @@ func Init(address string, id string, stream *bufio.Reader, emitOutput bool) erro
 			break
 		}
 
-		_, err = conn.Write(jsonToSend)
-
-		if err != nil {
+		if _, err = conn.Write(jsonToSend); err != nil && err != io.EOF {
 			return err
 		}
-		// process buffer
-		if err != nil && err != io.EOF {
-			log.Fatal(err)
-		}
 
-		if emitOutput == true {
+		if opts.EmitOutput == true {
 			// Write to stdout
 			out := os.Stdout
 			if _, err = out.WriteString(string(buffer)); err != nil {

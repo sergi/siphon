@@ -30,4 +30,3 @@ COPY --from=build-env-go /go/src/github.com/sergi/siphon/siph /app/
 COPY --from=build-env-node /app/build /usr/share/nginx/html/
 ENTRYPOINT ["./siph"]
 CMD ["server"]
-

@@ -96,8 +96,7 @@ func (s *Server) handleConnection(ws *websocket.Conn, channel string) {
 		}
 
 		ws.SetWriteDeadline(time.Now().Add(30 * time.Second))
-		err := ws.WriteMessage(websocket.TextMessage, message)
-		if err != nil {
+		if err := ws.WriteMessage(websocket.TextMessage, message); err != nil {
 			break
 		}
 	}
