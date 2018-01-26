@@ -36,7 +36,7 @@ var (
 	serverWsPort  = server.Flag("ws-port", "WebSockets port to run in Server mode").Short('w').Int()
 
 	client         = app.Command("client", "Stream output to a server")
-	clientAddress  = client.Flag("address", "Server address").Default("127.0.0.1:1200").String()
+	host           = client.Flag("address", "Server address").Default("127.0.0.1:1200").String()
 	clientID       = client.Flag("id", "ID given to this stream").Default("").String()
 	clientNoOutput = client.Flag("no-output", "Don't emit any output. Siph re-emits its stdin output by default").Bool()
 )
@@ -81,11 +81,11 @@ func main() {
 	case client.FullCommand():
 		consumerOpts := &siphon.ConsumerOptions{
 			Id:         *clientID,
-			Address:    *clientAddress,
+			Address:    *host,
 			EmitOutput: !(*clientNoOutput),
 		}
 
-		conn, connErr := getUDPAddress(*clientAddress)
+		conn, connErr := getUDPAddress(*host)
 		if connErr != nil {
 			fmt.Fprintln(os.Stderr, connErr)
 			os.Exit(ExitCodeError)
