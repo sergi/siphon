@@ -2,159 +2,95 @@ package siphon
 
 import (
 	"fmt"
-	"log"
 	"net"
-	"net/http"
 	"os"
 	"strconv"
 	"sync"
-	"sync/atomic"
-	"time"
-
-	"github.com/gorilla/websocket"
 )
 
 const (
 	maxMessageSize = 1024
-	pingPeriod     = 5 * time.Minute
-	defaultWsPort  = 3000
 	defaultUDPPort = 1200
+	DefaultChannel = "logging"
+	localhost      = "127.0.0.1"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: maxMessageSize,
-	CheckOrigin: func(r *http.Request) bool { // WARNING! That's probably messed up https://stackoverflow.com/questions/33323337/update-send-the-origin-header-with-js-websockets
-		return true
-	},
-}
-
-// Server represents a UDP and Websockets server that broadcasts all data
+// Server represents a UDP server that broadcasts all data
 // chunks coming from client pipes
 type Server struct {
 	subscriptions      map[string][]chan []byte
 	subscriptionsMutex sync.Mutex
-	connected          int64
-	failed             int64
-	wsPort             int
-	udpPort            int
+	port               int
 }
 
-// NewServer creates a new server with the given port, or a. default one in
-// case it's not provided.
-func NewServer(udpPort int, wsPort int) *Server {
-	if udpPort == 0 {
-		udpPort = defaultUDPPort
-	}
-	if wsPort == 0 {
-		wsPort = defaultWsPort
-	}
-	s := &Server{
-		wsPort:  wsPort,
-		udpPort: udpPort,
-	}
-	return s
-}
-
-func (s *Server) Init() error {
-	s.subscriptions = map[string][]chan []byte{}
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		ws, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			fmt.Println(err)
-			return
+func Port(port int) func(*Server) {
+	return func(server *Server) {
+		if port != 0 {
+			server.port = port
 		}
-		fmt.Println("Connected client")
-		// channel := r.URL.Path[1:]
-		// launch a new goroutine so that this function can return and the http server can free up
-		// buffers associated with this connection
-		go s.handleConnection(ws, "logging")
+	}
+}
+
+// NewServer creates a new server
+func NewServer(options ...func(*Server)) (*Server, error) {
+	s := &Server{
+		port:          defaultUDPPort,
+		subscriptions: map[string][]chan []byte{},
+	}
+
+	for _, option := range options {
+		option(s)
+	}
+
+	conn, err := net.ListenUDP("udp", &net.UDPAddr{
+		Port: s.port,
+		IP:   net.ParseIP(localhost),
 	})
 
-	go func() {
-		if err := http.ListenAndServe(":"+strconv.Itoa(s.wsPort), nil); err != nil {
-			log.Fatal(err)
-		}
-	}()
-
-	s.startReceiving()
-	return nil
-}
-
-func (s *Server) handleConnection(ws *websocket.Conn, channel string) {
-	sub := s.subscribe(channel)
-	atomic.AddInt64(&s.connected, 1)
-	t := time.NewTicker(pingPeriod)
-
-	var message []byte
-
-	for {
-		select {
-		case <-t.C:
-			message = nil
-		case message = <-sub:
-		}
-
-		ws.SetWriteDeadline(time.Now().Add(30 * time.Second))
-		if err := ws.WriteMessage(websocket.TextMessage, message); err != nil {
-			break
-		}
+	if err != nil {
+		return nil, err
 	}
-	atomic.AddInt64(&s.connected, -1)
-	atomic.AddInt64(&s.failed, 1)
-
-	t.Stop()
-	ws.Close()
-	s.unsubscribe(channel, sub)
-}
-
-func (s *Server) startReceiving() {
-	addr := net.UDPAddr{
-		Port: s.udpPort,
-		IP:   net.ParseIP("127.0.0.1"),
-	}
-
-	conn, err := net.ListenUDP("udp", &addr)
-	checkError(err)
 
 	hostName, _ := os.Hostname()
-	fmt.Println(Name + " WebSocket server: " + hostName + ":" + strconv.Itoa(s.wsPort))
-	fmt.Println(Name + " UDP server: " + hostName + ":" + strconv.Itoa(s.udpPort))
+	fmt.Println(Name + " UDP server: " + hostName + ":" + strconv.Itoa(s.port))
 
+	s.Listen(conn)
+
+	return s, nil
+}
+
+func (s *Server) Listen(conn *net.UDPConn) {
 	for {
 		var buf = make([]byte, 1500)
 
-		n, addr, err := conn.ReadFromUDP(buf)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		fmt.Println("Got message from ", addr, " with n = ", n)
+		n, _ /*addr*/, err := conn.ReadFromUDP(buf)
+		checkError(err)
+		//fmt.Println("Got message from ", addr, " with n = ", n)
 
 		s.subscriptionsMutex.Lock()
-		subs := s.subscriptions["logging"]
+		subs := s.subscriptions[DefaultChannel]
 		s.subscriptionsMutex.Unlock()
-		fmt.Println(string(buf[:n]))
 
-		for _, s := range subs {
+		for _, sub := range subs {
 			select {
-			case s <- buf[:n]:
+			case sub <- buf[:n]:
 			default:
 				// drop the message if nobody is ready to receive it
+				fmt.Println("Message dropped, nobody listening")
 			}
 		}
 	}
 }
 
-func (s *Server) subscribe(channel string) chan []byte {
+func (s *Server) Subscribe(channel string) chan []byte {
 	sub := make(chan []byte)
 	s.subscriptionsMutex.Lock()
-	s.subscriptions[channel] = append(s.subscriptions[channel], sub)
+	s.subscriptions[DefaultChannel] = append(s.subscriptions[DefaultChannel], sub)
 	s.subscriptionsMutex.Unlock()
 	return sub
 }
 
-func (s *Server) unsubscribe(channel string, sub chan []byte) {
+func (s *Server) Unsubscribe(channel string, sub chan []byte) {
 	s.subscriptionsMutex.Lock()
 	var newSubs []chan []byte
 	subs := s.subscriptions[channel]

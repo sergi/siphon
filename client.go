@@ -42,7 +42,7 @@ func getHostName() string {
 	return hostname
 }
 
-// Init initializes the client to start sending Chunks at the given address
+// Listen initializes the client to start sending Chunks at the given address
 func Init(opts ConsumerOptions, stream io.Reader, conn io.Writer) error {
 	if opts.Id == "" {
 		opts.Id, _ = shortid.Generate()

@@ -8,6 +8,8 @@ import (
 	"os"
 
 	"github.com/sergi/siphon"
+	"github.com/sergi/siphon/handlers/cli"
+	"github.com/sergi/siphon/handlers/websocket"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -32,7 +34,7 @@ var (
 	app = kingpin.New("siph", "A real-time stream utility.")
 
 	server        = app.Command("server", "Run in Server mode")
-	serverUDPPort = server.Flag("udp-port", "UDP port to run in Server mode").Short('u').Int()
+	serverUDPPort = server.Flag("udp-port", "UDP port to run in Server mode").Short('u').Default("1200").Int()
 	serverWsPort  = server.Flag("ws-port", "WebSockets port to run in Server mode").Short('w').Int()
 
 	client         = app.Command("client", "Stream output to a server")
@@ -70,9 +72,8 @@ func main() {
 	switch kingpin.MustParse(app.Parse(os.Args[1:])) {
 
 	case server.FullCommand():
-		server := siphon.NewServer(*serverUDPPort, *serverWsPort)
 		fmt.Print(siphonTemplate)
-		err := server.Init()
+		_, err := siphon.NewServer(siphon.Port(*serverUDPPort), cli.New(), websocket.New())
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(ExitCodeError)
